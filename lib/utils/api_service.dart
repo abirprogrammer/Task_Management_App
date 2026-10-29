@@ -203,6 +203,19 @@ class ApiService {
     );
   }
 
+  /// Change Password
+  static Future<Map<String, dynamic>> changePassword(int userId, String currentPassword, String newPassword) async {
+    return _sendRequest(
+      method: 'POST',
+      url: ApiConstants.changePassword,
+      body: {
+        'user_id': userId,
+        'current_password': currentPassword,
+        'new_password': newPassword,
+      },
+    );
+  }
+
   /// Get tasks for a user
   static Future<List<TaskModel>> getTasks(int userId) async {
     try {
@@ -253,7 +266,7 @@ class ApiService {
       body: {
         'user_id': userId,
         'title': title,
-        'description': description,
+        'description': taskTitleOrDesc(title, description),
         'category': category,
         'due_date': dueDate,
         'priority': priority,
@@ -262,6 +275,8 @@ class ApiService {
 
     return data['success'] == true;
   }
+
+  static String taskTitleOrDesc(String title, String desc) => desc;
 
   /// Update task
   static Future<bool> updateTask(TaskModel task) async {

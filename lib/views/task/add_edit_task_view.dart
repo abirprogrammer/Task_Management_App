@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../../constants/app_colors.dart';
@@ -8,6 +7,8 @@ import '../../models/task_model.dart';
 import '../../utils/api_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
+import '../home/widgets/custom_warning_aleart_dialog.dart';
+import '../home/widgets/success_alert_dialog.dart';
 
 class AddEditTaskView extends StatefulWidget {
   final int userId;
@@ -42,6 +43,7 @@ class _AddEditTaskViewState extends State<AddEditTaskView> {
   static const Color background = Color(0xFFF8FAF8);
   static const Color muted = Color(0xFF667085);
   static const Color dividerColor = Color(0xFFE2F0D3);
+  static const Color darkText = Color(0xFF30352E);
 
   final List<String> _categories = [
     'Work',
@@ -111,12 +113,27 @@ class _AddEditTaskViewState extends State<AddEditTaskView> {
       return;
     }
 
+    final isEditing = widget.task != null;
+    final actionText = isEditing ? 'Update' : 'Add';
+
+    final confirmed = await CustomAlertDialog.show(
+      context: context,
+      title: 'Warning',
+      description: 'Are you sure you want to $actionText this task?',
+      icon: Icons.warning_amber_rounded,
+      iconColor: const Color(0xFFFFB000),
+      confirmText: 'Confirm',
+      confirmColor: AppColors.primary,
+    );
+
+    if (confirmed != true || !mounted) return;
+
     setState(() => _isLoading = true);
 
     try {
       bool success;
 
-      if (widget.task == null) {
+      if (!isEditing) {
         success = await ApiService.addTask(
           widget.userId,
           title,
@@ -145,9 +162,18 @@ class _AddEditTaskViewState extends State<AddEditTaskView> {
       setState(() => _isLoading = false);
 
       if (success) {
-        Navigator.pop(context, true);
+        SuccessAlertDialog.show(
+          context: context,
+          title: 'Success',
+          description: isEditing
+              ? 'Your task has been updated successfully.'
+              : 'Your task has been added successfully.',
+          onPressed: () {
+            Navigator.pop(context, true);
+          },
+        );
       } else {
-        _showMessage('Failed to save task');
+        _showMessage(isEditing ? 'Failed to update task' : 'Failed to save task');
       }
     } catch (e) {
       if (!mounted) return;
@@ -203,19 +229,17 @@ class _AddEditTaskViewState extends State<AddEditTaskView> {
           ),
         ],
       ),
-    );
+    ) ??
+        false;
 
-    if (confirmed != true || !mounted) return;
-
-    if (widget.onDeleteTask == null) {
-      _showMessage('Please connect your delete API.');
-      return;
-    }
+    if (!confirmed || !mounted) return;
 
     setState(() => _isLoading = true);
 
     try {
-      final success = await widget.onDeleteTask!(widget.task!.id);
+      final success = widget.onDeleteTask != null
+          ? await widget.onDeleteTask!(widget.task!.id)
+          : await ApiService.deleteTask(widget.task!.id, widget.userId);
 
       if (!mounted) return;
 
@@ -228,373 +252,177 @@ class _AddEditTaskViewState extends State<AddEditTaskView> {
       }
     } catch (e) {
       if (!mounted) return;
+
       setState(() => _isLoading = false);
-      _showMessage('Could not delete task');
+      _showMessage('Could not delete task.');
     }
   }
 
-  // ---------------- DETAILS ROW ----------------
-
-  Widget _detailsRow({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 14,
-          height: 14,
-          margin: const EdgeInsets.only(top: 1),
-          decoration: BoxDecoration(
-            color: green.withValues(alpha: 0.09),
-            borderRadius: BorderRadius.circular(2),
+  @override
+  Widget build(BuildContext context) {
+    if (widget.showDetails && widget.task != null) {
+      return Scaffold(
+        backgroundColor: background,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black),
+            onPressed: () => Navigator.pop(context),
           ),
-          child: Icon(
-            icon,
-            size: 11,
-            color: green,
-          ),
-        ),
-        const SizedBox(width: 7),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF292D29),
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                value.isEmpty ? 'No description added' : value,
-                style: const TextStyle(
-                  fontSize: 10.5,
-                  height: 1.4,
-                  color: muted,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ---------------- ACTION BUTTON ----------------
-
-  Widget _actionButton({
-    required String text,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onPressed,
-  }) {
-    return SizedBox(
-      height: 29,
-      child: OutlinedButton.icon(
-        onPressed: _isLoading ? null : onPressed,
-        icon: Icon(icon, size: 13, color: color),
-        label: Text(
-          text,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
-            color: color,
-          ),
-        ),
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          side: BorderSide(color: color, width: 0.8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
-          ),
-          minimumSize: Size.zero,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-      ),
-    );
-  }
-
-  // ---------------- BOTTOM NAVIGATION ----------------
-
-  Widget _navItem({
-    required int index,
-    required IconData icon,
-    required String label,
-    bool active = false,
-  }) {
-    return Expanded(
-      child: InkWell(
-        onTap: () {
-          if (widget.onNavigationSelected != null) {
-            widget.onNavigationSelected!(index);
-          } else {
-            _showMessage('$label navigation is not connected');
-          }
-        },
-        child: SizedBox(
-          height: 54,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: active ? 42 : 27,
-                height: active ? 42 : 27,
-                decoration: BoxDecoration(
-                  color: active ? green : Colors.transparent,
-                  shape: BoxShape.circle,
-                  boxShadow: active
-                      ? [
-                    BoxShadow(
-                      color: green.withValues(alpha: 0.24),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                      : null,
-                ),
-                child: Icon(
-                  icon,
-                  size: index == 1 ? 27 : 20,
-                  color: active ? Colors.white : const Color(0xFF18202C),
-                ),
-              ),
-              if (!active)
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 9,
-                    color: Color(0xFF344054),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _bottomNavigation() {
-    return Container(
-      height: 68,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(11),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.07),
-            blurRadius: 15,
-            offset: const Offset(0, -3),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: [
-            _navItem(
-              index: 0,
-              icon: Icons.home_outlined,
-              label: 'Home',
-              active: true,
+          title: const Text(
+            'Task Details',
+            style: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.w700,
             ),
-            _navItem(
-              index: 1,
-              icon: Icons.add,
-              label: 'Add Task',
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, color: green),
+              onPressed: _editTask,
             ),
-            _navItem(
-              index: 2,
-              icon: Icons.person_outline,
-              label: 'Profile',
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+              onPressed: _deleteTask,
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  // ---------------- DETAILS SCREEN ----------------
-
-  Widget _buildDetailsScreen() {
-    final task = widget.task!;
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: dividerColor),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: green.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            widget.task!.category,
+                            style: const TextStyle(
+                              color: green,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: widget.task!.priority == 'High'
+                                ? Colors.red.withValues(alpha: 0.1)
+                                : widget.task!.priority == 'Medium'
+                                ? Colors.orange.withValues(alpha: 0.1)
+                                : Colors.blue.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            widget.task!.priority,
+                            style: TextStyle(
+                              color: widget.task!.priority == 'High'
+                                  ? Colors.red
+                                  : widget.task!.priority == 'Medium'
+                                  ? Colors.orange
+                                  : Colors.blue,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      widget.task!.title,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: darkText,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Divider(color: dividerColor),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const Icon(Icons.calendar_today, size: 16, color: muted),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Due Date: ${widget.task!.dueDate.isEmpty ? 'Not specified' : widget.task!.dueDate}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: muted,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Description',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: darkText,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.task!.description.isEmpty
+                          ? 'No description provided.'
+                          : widget.task!.description,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: muted,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: background,
       appBar: AppBar(
-        backgroundColor: background,
+        backgroundColor: Colors.white,
         elevation: 0,
-        scrolledUnderElevation: 0,
-        centerTitle: true,
-        automaticallyImplyLeading: false,
-        leadingWidth: 57,
-        leading: Padding(
-          padding: const EdgeInsets.only(
-            left: 12,
-            top: 5,
-            bottom: 5,
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFF4FBEF),
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: IconButton(
-              onPressed: () => Navigator.pop(context),
-              padding: EdgeInsets.zero,
-              icon: const Icon(
-                Icons.arrow_back_ios_new,
-                color: green,
-                size: 15,
-              ),
-            ),
-          ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Tasks Details',
-          style: TextStyle(
-            color: Color(0xFF151815),
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(13, 8, 13, 15),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(15, 16, 15, 15),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(6),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.035),
-                blurRadius: 16,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _detailsRow(
-                icon: Icons.article_outlined,
-                label: 'Task Title',
-                value: task.title,
-              ),
-              const SizedBox(height: 11),
-              const Divider(
-                color: dividerColor,
-                height: 1,
-                thickness: 1,
-              ),
-              const SizedBox(height: 11),
-              _detailsRow(
-                icon: Icons.notes_outlined,
-                label: 'Task Description',
-                value: task.description,
-              ),
-              const SizedBox(height: 11),
-              const Divider(
-                color: dividerColor,
-                height: 1,
-                thickness: 1,
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 7,
-                runSpacing: 7,
-                children: [
-                  _actionButton(
-                    text: 'Delete Task',
-                    icon: Icons.delete_outline,
-                    color: Colors.redAccent,
-                    onPressed: _deleteTask,
-                  ),
-                  _actionButton(
-                    text: 'Edit Task',
-                    icon: Icons.edit_outlined,
-                    color: green,
-                    onPressed: _editTask,
-                  ),
-                ],
-              ),
-              if (_isLoading) ...[
-                const SizedBox(height: 12),
-                const Center(
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: green,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-      bottomNavigationBar: _bottomNavigation(),
-    );
-  }
-
-  // ---------------- FORM DECORATION ----------------
-
-  InputDecoration _fieldDecoration(String hint) {
-    return InputDecoration(
-      hintText: hint,
-      filled: true,
-      fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 14,
-        vertical: 14,
-      ),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: dividerColor),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: green),
-      ),
-    );
-  }
-
-  // ---------------- ADD / EDIT FORM ----------------
-
-  Widget _buildFormScreen() {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        centerTitle: true,
         title: Text(
-          _isEditing ? AppStrings.editTask : AppStrings.addTask,
-          style: AppStyles.heading2,
-        ),
-        backgroundColor: AppColors.surface,
-        elevation: 0,
-        iconTheme: const IconThemeData(
-          color: AppColors.textPrimary,
+          _isEditing ? 'Edit Task' : 'Add New Task',
+          style: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       body: SingleChildScrollView(
@@ -602,110 +430,88 @@ class _AddEditTaskViewState extends State<AddEditTaskView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Title', style: AppStyles.heading3),
+            Text(AppStrings.taskTitle, style: AppStyles.heading3),
             const SizedBox(height: 8),
             CustomTextField(
               controller: _titleController,
-              hintText: 'Enter task title...',
+              hintText: "Enter task title...",
               prefixIcon: Icons.title,
             ),
-            const SizedBox(height: 20),
-
-            Text('Description', style: AppStyles.heading3),
+            const SizedBox(height: 16),
+            Text(AppStrings.taskDescription, style: AppStyles.heading3),
             const SizedBox(height: 8),
             CustomTextField(
               controller: _descController,
-              hintText: 'Enter task description...',
+              hintText: "Enter task description...",
               prefixIcon: Icons.description_outlined,
               maxLines: 3,
             ),
-            const SizedBox(height: 20),
-
-            Text('Category', style: AppStyles.heading3),
+            const SizedBox(height: 16),
+            Text(AppStrings.category, style: AppStyles.heading3),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               value: _selectedCategory,
-              decoration: _fieldDecoration('Select category'),
-              items: _categories.map((category) {
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: dividerColor),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: dividerColor),
+                ),
+              ),
+              items: _categories.map((cat) {
                 return DropdownMenuItem(
-                  value: category,
-                  child: Text(category, style: AppStyles.bodyLarge),
+                  value: cat,
+                  child: Text(cat, style: AppStyles.bodyLarge),
                 );
               }).toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _selectedCategory = value);
-                }
+              onChanged: (val) {
+                if (val != null) setState(() => _selectedCategory = val);
               },
             ),
-            const SizedBox(height: 20),
-
-            Text('Priority', style: AppStyles.heading3),
+            const SizedBox(height: 16),
+            Text(AppStrings.priority, style: AppStyles.heading3),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               value: _selectedPriority,
-              decoration: _fieldDecoration('Select priority'),
-              items: _priorities.map((priority) {
-                return DropdownMenuItem(
-                  value: priority,
-                  child: Text(priority, style: AppStyles.bodyLarge),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() => _selectedPriority = value);
-                }
-              },
-            ),
-            const SizedBox(height: 20),
-
-            Text('Due Date', style: AppStyles.heading3),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _dueDateController,
-              readOnly: true,
-              decoration: _fieldDecoration('Select due date').copyWith(
-                prefixIcon: const Icon(
-                  Icons.calendar_today,
-                  color: green,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: dividerColor),
                 ),
-                suffixIcon: IconButton(
-                  icon: const Icon(
-                    Icons.date_range,
-                    color: green,
-                  ),
-                  onPressed: () async {
-                    final now = DateTime.now();
-
-                    final selected = await showDatePicker(
-                      context: context,
-                      initialDate: DateTime.tryParse(
-                        _dueDateController.text,
-                      ) ??
-                          now,
-                      firstDate: DateTime(
-                        now.year,
-                        now.month,
-                        now.day,
-                      ),
-                      lastDate: DateTime(2100),
-                    );
-
-                    if (selected != null) {
-                      _dueDateController.text =
-                      '${selected.year.toString().padLeft(4, '0')}-'
-                          '${selected.month.toString().padLeft(2, '0')}-'
-                          '${selected.day.toString().padLeft(2, '0')}';
-                    }
-                  },
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: dividerColor),
                 ),
               ),
+              items: _priorities.map((pri) {
+                return DropdownMenuItem(
+                  value: pri,
+                  child: Text(pri, style: AppStyles.bodyLarge),
+                );
+              }).toList(),
+              onChanged: (val) {
+                if (val != null) setState(() => _selectedPriority = val);
+              },
             ),
-            const SizedBox(height: 32),
-
+            const SizedBox(height: 16),
+            Text(AppStrings.dueDate, style: AppStyles.heading3),
+            const SizedBox(height: 8),
+            CustomTextField(
+              controller: _dueDateController,
+              hintText: "e.g. 2026-12-31",
+              prefixIcon: Icons.calendar_today,
+            ),
+            const SizedBox(height: 28),
             CustomButton(
               text: _isEditing ? AppStrings.update : AppStrings.save,
-              onPressed: _saveTask,
+              onPressed: _saveNewTaskPressed,
               isLoading: _isLoading,
             ),
           ],
@@ -714,12 +520,7 @@ class _AddEditTaskViewState extends State<AddEditTaskView> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (widget.showDetails && widget.task != null) {
-      return _buildDetailsScreen();
-    }
-
-    return _buildFormScreen();
+  void _saveNewTaskPressed() {
+    _saveTask();
   }
 }

@@ -4,12 +4,18 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../constants/app_colors.dart';
 import '../../models/user_model.dart';
 import '../../utils/api_service.dart';
 import '../../utils/shared_prefs_helper.dart';
 import '../auth/login_view.dart';
 import '../home/widgets/custom_warning_aleart_dialog.dart';
+import '../home/widgets/success_alert_dialog.dart';
 import 'my_profile_view.dart';
+import 'account_setting_view.dart';
+import 'terms_condition_view.dart';
+import 'privacy_policy_view.dart';
+import 'help_support_view.dart';
 
 class ProfileView extends StatefulWidget {
   final UserModel user;
@@ -49,7 +55,7 @@ class _ProfileViewState extends State<ProfileView> {
   void initState() {
     super.initState();
     _currentUser = widget.user;
-    _profileImageBase64 = widget.profileImageBase64;
+    _profileImageBase64 = widget.profileImageBase64 ?? widget.user.profileImage;
   }
 
   @override
@@ -59,7 +65,7 @@ class _ProfileViewState extends State<ProfileView> {
       _currentUser = widget.user;
     }
     if (widget.profileImageBase64 != oldWidget.profileImageBase64) {
-      _profileImageBase64 = widget.profileImageBase64;
+      _profileImageBase64 = widget.profileImageBase64 ?? widget.user.profileImage;
     }
   }
 
@@ -115,7 +121,9 @@ class _ProfileViewState extends State<ProfileView> {
       if (response['success'] == true) {
         setState(() {
           _profileImageBase64 = base64Image;
+          _currentUser = _currentUser.copyWith(profileImage: base64Image);
         });
+        await SharedPrefsHelper.saveUser(_currentUser);
         if (widget.onImageUpdated != null) {
           widget.onImageUpdated!(base64Image);
         }
@@ -139,13 +147,12 @@ class _ProfileViewState extends State<ProfileView> {
 
     final confirmed = await CustomAlertDialog.show(
       context: context,
-      icon: Icons.warning_amber_rounded,
       title: 'Warning',
       description: 'Are you sure you want to log out of your account?',
+      icon: Icons.warning_amber_rounded,
       iconColor: const Color(0xFFFFB000),
-      confirmColor: const Color(0xFF80C900),
-      cancelText: 'Cancel',
       confirmText: 'Confirm',
+      confirmColor: AppColors.primary,
     );
 
     if (confirmed != true || !mounted) return;
@@ -156,12 +163,20 @@ class _ProfileViewState extends State<ProfileView> {
       await SharedPrefsHelper.logout();
 
       if (!mounted) return;
+      setState(() => _isLoggingOut = false);
 
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(
-          builder: (_) => const LoginView(),
-        ),
-        (route) => false,
+      SuccessAlertDialog.show(
+        context: context,
+        title: 'Success',
+        description: 'You have been logged out successfully.',
+        onPressed: () {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute<void>(
+              builder: (_) => const LoginView(),
+            ),
+            (route) => false,
+          );
+        },
       );
     } catch (error, stackTrace) {
       debugPrint('Logout error: $error');
@@ -172,10 +187,6 @@ class _ProfileViewState extends State<ProfileView> {
         _showMessage('Logout failed. Please try again.');
       }
     }
-  }
-
-  void _showComingSoon(String title) {
-    _showMessage('$title is not configured yet.');
   }
 
   @override
@@ -460,8 +471,14 @@ class _ProfileViewState extends State<ProfileView> {
                               title: 'Account Setting',
                               subtitle: 'Manage your account preferences',
                               textColor: primaryText,
-                              onTap: () =>
-                                  _showComingSoon('Account Settings'),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => AccountSettingView(user: _currentUser),
+                                  ),
+                                );
+                              },
                             ),
                           ),
 
@@ -481,8 +498,14 @@ class _ProfileViewState extends State<ProfileView> {
                               title: 'Terms & Conditions',
                               subtitle: 'Read the terms of using this app',
                               textColor: primaryText,
-                              onTap: () =>
-                                  _showComingSoon('Terms & Conditions'),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const TermsConditionView(),
+                                  ),
+                                );
+                              },
                             ),
                           ),
 
@@ -496,8 +519,14 @@ class _ProfileViewState extends State<ProfileView> {
                               title: 'Privacy Policy',
                               subtitle: 'Learn how your data is handled',
                               textColor: primaryText,
-                              onTap: () =>
-                                  _showComingSoon('Privacy Policy'),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const PrivacyPolicyView(),
+                                  ),
+                                );
+                              },
                             ),
                           ),
 
@@ -511,8 +540,14 @@ class _ProfileViewState extends State<ProfileView> {
                               title: 'Help / Support',
                               subtitle: 'Get help with the application',
                               textColor: primaryText,
-                              onTap: () =>
-                                  _showComingSoon('Help & Support'),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const HelpSupportView(),
+                                  ),
+                                );
+                              },
                             ),
                           ),
 

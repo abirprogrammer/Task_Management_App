@@ -1,4 +1,7 @@
 <?php
+error_reporting(0);
+ini_set('display_errors', 0);
+
 include_once 'config.php';
 
 $input = file_get_contents("php://input");
@@ -22,7 +25,6 @@ if (empty($name) || empty($email) || empty($password)) {
 }
 
 try {
-    // Check if email already exists
     $stmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
     $stmt->execute([$email]);
     if ($stmt->rowCount() > 0) {
@@ -32,11 +34,12 @@ try {
 
     $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
 
-    // Try inserting with address, if column doesn't exist, fallback to inserting without address
     try {
+        $stmt = $conn->prepare("INSERT INTO users (name, email, address, password) WHERE COLUMN_NAME IN (...) VALUES (?, ?, ?, ?)");
+        // Just standard insert with address
         $stmt = $conn->prepare("INSERT INTO users (name, email, address, password) VALUES (?, ?, ?, ?)");
         $stmt->execute([$name, $email, $address, $hashedPassword]);
-    } catch (PDOException $e) {
+    } catch (Throwable $e) {
         $stmt = $conn->prepare("INSERT INTO users (name, email, password) VALUES (?, ?, ?)");
         $stmt->execute([$name, $email, $hashedPassword]);
     }
@@ -52,8 +55,10 @@ try {
             "address" => $address
         ]
     ]);
+    exit();
 
-} catch (PDOException $e) {
+} catch (Throwable $e) {
     echo json_encode(["success" => false, "message" => "Database error: " . $e->getMessage()]);
+    exit();
 }
 ?>

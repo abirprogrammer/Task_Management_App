@@ -13,6 +13,8 @@ import '../../../widgets/custom_button.dart';
 import '../../../widgets/custom_text_field.dart';
 import '../../profile/profile_view.dart';
 import '../../task/task_detail_view.dart';
+import '../widgets/custom_warning_aleart_dialog.dart';
+import '../widgets/success_alert_dialog.dart';
 import 'notification_view.dart';
 
 class HomeView extends StatefulWidget {
@@ -93,11 +95,29 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
   }
 
   void _deleteTask(int taskId) async {
+    final confirmed = await CustomAlertDialog.show(
+      context: context,
+      title: 'Warning',
+      description: 'Are you sure you want to delete this task?',
+      icon: Icons.warning_amber_rounded,
+      iconColor: const Color(0xFFFFB000),
+      confirmText: 'Confirm',
+      confirmColor: AppColors.primary,
+    );
+
+    if (confirmed != true || !mounted) return;
+
     bool success = await ApiService.deleteTask(taskId, _currentUser.id);
     if (success) {
       setState(() {
         _tasks.removeWhere((t) => t.id == taskId);
       });
+      if (!mounted) return;
+      SuccessAlertDialog.show(
+        context: context,
+        title: 'Success',
+        description: 'The task has been permanently removed.',
+      );
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -117,6 +137,18 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
       );
       return;
     }
+
+    final confirmed = await CustomAlertDialog.show(
+      context: context,
+      title: 'Warning',
+      description: 'Are you sure you want to Add this task?',
+      icon: Icons.warning_amber_rounded,
+      iconColor: const Color(0xFFFFB000),
+      confirmText: 'Confirm',
+      confirmColor: AppColors.primary,
+    );
+
+    if (confirmed != true || !mounted) return;
 
     setState(() => _isSavingTask = true);
     bool success = await ApiService.addTask(
@@ -141,8 +173,10 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
       _motionTabBarController?.index = 0;
       _fetchTasks();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Task created successfully!")),
+      SuccessAlertDialog.show(
+        context: context,
+        title: 'Success',
+        description: 'Your task has been added successfully.',
       );
     } else {
       if (!mounted) return;
@@ -285,7 +319,19 @@ class _HomeViewState extends State<HomeView> with TickerProviderStateMixin {
                               final result = await Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => TaskDetailView(task: task, userId: _currentUser.id),
+                                  builder: (context) => TaskDetailView(
+                                    task: task,
+                                    userId: _currentUser.id,
+                                    onDeleteTask: (taskId) async {
+                                      bool ok = await ApiService.deleteTask(taskId, _currentUser.id);
+                                      if (ok) {
+                                        setState(() {
+                                          _tasks.removeWhere((t) => t.id == taskId);
+                                        });
+                                      }
+                                      return ok;
+                                    },
+                                  ),
                                 ),
                               );
                               if (result == true) {

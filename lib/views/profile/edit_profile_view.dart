@@ -7,8 +7,11 @@ import '../../constants/app_colors.dart';
 import '../../constants/app_styles.dart';
 import '../../models/user_model.dart';
 import '../../utils/api_service.dart';
+import '../../utils/shared_prefs_helper.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
+import '../home/widgets/custom_warning_aleart_dialog.dart';
+import '../home/widgets/success_alert_dialog.dart';
 
 class EditProfileView extends StatefulWidget {
   final UserModel user;
@@ -38,7 +41,7 @@ class _EditProfileViewState extends State<EditProfileView> {
     _nameController = TextEditingController(text: widget.user.name);
     _emailController = TextEditingController(text: widget.user.email);
     _addressController = TextEditingController(text: widget.user.address);
-    _imageBase64 = widget.profileImageBase64;
+    _imageBase64 = widget.profileImageBase64 ?? widget.user.profileImage;
   }
 
   @override
@@ -80,11 +83,25 @@ class _EditProfileViewState extends State<EditProfileView> {
       return;
     }
 
+    // Show warning confirmation dialog matching screenshot
+    final confirmed = await CustomAlertDialog.show(
+      context: context,
+      title: 'Warning',
+      description: 'Are you sure you want to update your profile information?',
+      icon: Icons.warning_amber_rounded,
+      iconColor: const Color(0xFFFFB000),
+      confirmText: 'Confirm',
+      confirmColor: AppColors.primary,
+    );
+
+    if (confirmed != true || !mounted) return;
+
     setState(() => _isLoading = true);
 
     try {
       // Update profile details in database
       final response = await ApiService.updateProfile(widget.user.id, name, email, address);
+      if (!mounted) return;
 
       // Upload image if changed
       if (_imageBase64 != null && _imageBase64 != widget.profileImageBase64) {
@@ -100,11 +117,20 @@ class _EditProfileViewState extends State<EditProfileView> {
           name: name,
           email: email,
           address: address,
+          profileImage: _imageBase64,
         );
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated successfully!')),
+
+        await SharedPrefsHelper.saveUser(updatedUser);
+
+        if (!mounted) return;
+        SuccessAlertDialog.show(
+          context: context,
+          title: 'Success',
+          description: 'Your profile has been updated successfully.',
+          onPressed: () {
+            Navigator.pop(context, {'user': updatedUser, 'image': _imageBase64});
+          },
         );
-        Navigator.pop(context, {'user': updatedUser, 'image': _imageBase64});
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(response['message']?.toString() ?? 'Failed to update profile.')),

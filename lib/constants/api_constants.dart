@@ -11,4 +11,5 @@ class ApiConstants {
   static const String verifyOtp = "${baseUrl}verify_otp.php";
   static const String uploadProfile = "${baseUrl}upload_profile.php";
   static const String updateProfile = "${baseUrl}update_profile.php";
+  static const String changePassword = "${baseUrl}change_password.php";
 }
